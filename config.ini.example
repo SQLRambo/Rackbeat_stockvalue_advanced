@@ -1,0 +1,43 @@
+# Rackbeat API Configuration File
+# Copy this to config.ini and fill in your settings
+
+[rackbeat]
+# Your Rackbeat API key (get this from your account settings)
+api_key = YOUR_API_KEY_HERE
+
+# Optional: Valuation report date (YYYY-MM-DD format)
+# Leave empty or comment out to use current date
+# date_to = 2024-05-08
+
+[output]
+# Output format options: json, csv, both
+format = json
+
+# Output directory for files
+output_directory = ./reports
+
+# Include item-level details in the report
+include_item_details = false
+
+[reporting]
+# Email results to these addresses (comma-separated)
+# Leave empty to skip email
+email_recipients = 
+
+# Email subject line
+email_subject = Rackbeat Location Valuation Report
+
+[logging]
+# Log level: DEBUG, INFO, WARNING, ERROR
+log_level = INFO
+
+# Log file location (leave empty to disable file logging)
+log_file = rackbeat_valuation.log
+
+[locations]
+# Optional: Filter to specific location numbers (comma-separated)
+# Leave empty to process all locations
+filter_locations = 
+
+# Optional: Exclude specific locations (comma-separated)
+exclude_locations =

@@ -1,0 +1,26 @@
+# Config with real API keys
+config.ini
+
+# Generated output files
+*.csv
+*.json
+reports/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
