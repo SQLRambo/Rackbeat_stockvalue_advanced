@@ -221,7 +221,7 @@ class ReportGenerator:
         
         return str(filename)
     
-    def generate_csv(self, valuations: List[Dict[str, Any]], total_value: float) -> str:
+    def generate_csv(self, valuations: List[Dict[str, Any]], computed_total: float, api_total: float) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = self.output_dir / f"valuation_{timestamp}.csv"
 
@@ -235,7 +235,7 @@ class ReportGenerator:
                 writer.writerow([
                     val["location_name"],
                     val["location_number"],
-                    0,
+                    val["nesting_level"] + 1,
                     val["main_location_value"],
                     val["total_value"],
                 ])
@@ -243,29 +243,24 @@ class ReportGenerator:
                     writer.writerow([
                         f"{val['location_name']} - {sub['location_name']}",
                         sub["location_number"],
-                        sub["nesting_level"],
+                        sub["nesting_level"] + 1,
                         sub["value"],
                         "",
                     ])
 
             writer.writerow([])
-            writer.writerow(["GRAND TOTAL (from API)", "", "", "", total_value])
+            writer.writerow(["GRAND TOTAL (computed)", "", "", "", computed_total])
+            writer.writerow(["GRAND TOTAL (API endpoint)", "", "", "", api_total])
+            writer.writerow(["Difference", "", "", "", computed_total - api_total])
 
         return str(filename)
     
-    def generate_console_report(self, valuations: List[Dict[str, Any]], 
-                               total_value: float):
-        """
-        Print formatted report to console
-        
-        Args:
-            valuations: List of valuation dictionaries
-            total_value: Total company value
-        """
+    def generate_console_report(self, valuations: List[Dict[str, Any]],
+                               computed_total: float, api_total: float):
         print("\n" + "=" * 80)
         print("LOCATION VALUATIONS (Including Sub-Locations)")
         print("=" * 80)
-        
+
         for val in sorted(valuations, key=lambda v: v["location_name"]):
             print(f"\n📍 {val['location_name']} (Location #{val['location_number']})")
             print("-" * 60)
@@ -277,13 +272,15 @@ class ReportGenerator:
                     indent = "    " * sub["nesting_level"]
                     label = f"{val['location_name']} - {sub['location_name']}"
                     print(f"{indent}  • {label:.<40} {sub['value']:>12,.2f}")
-            
+
             print(f"\n  {'TOTAL (incl. sub-locations)':.<40} {val['total_value']:>12,.2f}")
             print("-" * 60)
-        
-        # Summary
+
+        diff = computed_total - api_total
         print("\n" + "=" * 80)
-        print(f"GRAND TOTAL (All Locations):                    {total_value:>15,.2f}")
+        print(f"GRAND TOTAL (computed from all locations):      {computed_total:>15,.2f}")
+        print(f"GRAND TOTAL (from API endpoint):                {api_total:>15,.2f}")
+        print(f"Difference:                                     {diff:>+15,.2f}")
         print(f"Location Count:                                 {len(valuations):>15}")
         print("=" * 80)
 
@@ -321,24 +318,24 @@ def main():
             print("No locations found matching the filter criteria")
             sys.exit(0)
         
-        # Calculate total
-        total_value = sum(v['total_value'] for v in valuations)
-        
+        computed_total = round(sum(v['total_value'] for v in valuations), 2)
+        api_total = client.get_grand_total(date_to)
+
         # Generate console report
         report_gen = ReportGenerator(config)
-        report_gen.generate_console_report(valuations, total_value)
-        
+        report_gen.generate_console_report(valuations, computed_total, api_total)
+
         # Generate output files based on configuration
         output_format = config.get('output', 'format', 'json').lower()
-        
+
         files_generated = []
         if output_format in ['json', 'both']:
-            json_file = report_gen.generate_json(valuations, total_value, date_to)
+            json_file = report_gen.generate_json(valuations, computed_total, date_to)
             files_generated.append(json_file)
             print(f"\n✓ JSON report saved to: {json_file}")
-        
+
         if output_format in ['csv', 'both']:
-            csv_file = report_gen.generate_csv(valuations, total_value)
+            csv_file = report_gen.generate_csv(valuations, computed_total, api_total)
             files_generated.append(csv_file)
             print(f"✓ CSV report saved to: {csv_file}")
         

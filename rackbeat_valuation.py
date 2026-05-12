@@ -196,6 +196,7 @@ class LocationValuationAggregator:
         result = {
             "location_number": location.number,
             "location_name": location.name,
+            "nesting_level": location.nesting_level,
             "main_location_value": 0.0,
             "sub_locations": [],
             "total_value": 0.0,
@@ -211,9 +212,7 @@ class LocationValuationAggregator:
             print(f"Error getting valuation for location {location.number}: {e}")
 
         total_value = result["main_location_value"]
-        # Use direct children only — each child's total_value already includes
-        # its own sub-hierarchy, so using get_all_descendants would double-count.
-        for sub_location in self.client.get_location_children(location.number):
+        for sub_location in self.client.get_all_descendants(location.number):
             try:
                 sub_report = self.client.get_valuation_report(sub_location.number, date_to)
                 sub_value = self._extract_valuation(sub_report)
@@ -292,36 +291,46 @@ def main():
             print(f"\n  {'TOTAL (incl. sub-locations)':.<40} {val['total_value']:>12,.2f}")
             print("-" * 60)
 
-        # Grand total fetched directly from the API to avoid any aggregation drift
-        total_company_value = client.get_grand_total(DATE_TO)
+        computed_total = round(sum(val["total_value"] for val in valuations), 2)
+        api_total = client.get_grand_total(DATE_TO)
+        diff = computed_total - api_total
 
         print("\n" + "=" * 80)
-        print(f"GRAND TOTAL (All Locations):                    {total_company_value:>15,.2f}")
+        print(f"GRAND TOTAL (computed from all locations):      {computed_total:>15,.2f}")
+        print(f"GRAND TOTAL (from API endpoint):                {api_total:>15,.2f}")
+        print(f"Difference:                                     {diff:>+15,.2f}")
         print("=" * 80)
 
         # Save results to semicolon-separated CSV file
         output_file = "rackbeat_valuations.csv"
         with open(output_file, "w", encoding="utf-8-sig", newline="") as f:
             writer = csv.writer(f, delimiter=";")
-            writer.writerow(["Location Name", "Location Number", "Level", "Main Location Value", "Total (incl. sub-locations)"])
+            writer.writerow(["Location Name", "Location Number", "Level", "Main Location Value", "Total (incl. sub-locations)", "Running Subtotal"])
+            running = 0.0
             for val in valuations:
+                running = round(running + val["main_location_value"], 2)
                 writer.writerow([
                     val["location_name"],
                     val["location_number"],
-                    0,
+                    val["nesting_level"] + 1,
                     val["main_location_value"],
-                    val["total_value"]
+                    val["total_value"],
+                    running
                 ])
                 for sub in val["sub_locations"]:
+                    running = round(running + sub["value"], 2)
                     writer.writerow([
                         f"{val['location_name']} - {sub['location_name']}",
                         sub["location_number"],
-                        sub["nesting_level"],
+                        sub["nesting_level"] + 1,
                         sub["value"],
-                        ""
+                        "",
+                        running
                     ])
             writer.writerow([])
-            writer.writerow(["GRAND TOTAL (from API)", "", "", "", total_company_value])
+            writer.writerow(["GRAND TOTAL (computed)", "", "", "", computed_total, running])
+            writer.writerow(["GRAND TOTAL (API endpoint)", "", "", "", api_total, ""])
+            writer.writerow(["Difference", "", "", "", diff, ""])
         
         print(f"\nResults saved to: {output_file}")
         
